@@ -57,8 +57,8 @@ def run_pipeline():
         print(f">>> Pipeline failed: {e}")
 
 def start_scheduler():
-    schedule.every().day.at("08:00").do(run_pipeline)
-    print(">>> Scheduler started — runs daily at 08:00 UTC")
+    schedule.every().friday.at("09:00").do(run_pipeline)
+    print(">>> Scheduler started — runs every Friday at 09:00 UTC (10:00 CET)")
     while True:
         schedule.run_pending()
         time.sleep(60)
