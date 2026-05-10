@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Program Health Agent</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, sans-serif; background: #0f1117; color: #e0e0e0; padding: 24px; }
+        h1 { color: #4fc3f7; margin-bottom: 4px; }
+        .meta { color: #666; font-size: 13px; margin-bottom: 24px; }
+        .controls { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+        .btn { background: #4fc3f7; color: #000; border: none; padding: 10px 24px;
+               border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; }
+        .btn:disabled { background: #333; color: #666; cursor: not-allowed; }
+        .btn-secondary { background: #1a1d2e; color: #4fc3f7; border: 1px solid #4fc3f7; }
+        .status-msg { font-size: 13px; color: #888; min-height: 20px; }
+        .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #333;
+                   border-top-color: #4fc3f7; border-radius: 50%;
+                   animation: spin 0.8s linear infinite;
+                   margin-right: 8px; vertical-align: middle; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Scorecard */
+        .scorecard { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+                     gap: 16px; margin-bottom: 24px; }
+        .score-card { background: #1a1d2e; border: 1px solid #2a2d3e; border-radius: 10px;
+                      padding: 20px; text-align: center; }
+        .score-card.green { border-color: #4caf50; }
+        .score-card.amber { border-color: #ff9800; }
+        .score-card.red { border-color: #f44336; }
+        .score-number { font-size: 36px; font-weight: 700; margin-bottom: 4px; }
+        .score-card.green .score-number { color: #4caf50; }
+        .score-card.amber .score-number { color: #ff9800; }
+        .score-card.red .score-number { color: #f44336; }
+        .score-label { font-size: 12px; color: #888; }
+        .score-rag { font-size: 18px; margin-bottom: 8px; }
+
+        /* Sections */
+        .section { background: #1a1d2e; border: 1px solid #2a2d3e; border-radius: 10px;
+                   padding: 20px; margin-bottom: 16px; }
+        .section h2 { color: #4fc3f7; font-size: 15px; margin-bottom: 12px;
+                      border-bottom: 1px solid #2a2d3e; padding-bottom: 8px; }
+        .section p { font-size: 13px; line-height: 1.7; color: #ccc; }
+
+        /* Risks & Recommendations */
+        .item { margin-bottom: 16px; padding: 12px; background: #0f1117;
+                border-radius: 6px; border-left: 3px solid #4fc3f7; }
+        .item.risk { border-left-color: #f44336; }
+        .item.rec { border-left-color: #4caf50; }
+        .item-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+        .item-desc { font-size: 12px; color: #aaa; line-height: 1.6; }
+
+        /* Metrics table */
+        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+        .metric { display: flex; justify-content: space-between; padding: 8px 12px;
+                  background: #0f1117; border-radius: 6px; font-size: 13px; }
+        .metric-label { color: #888; }
+        .metric-value { color: #4fc3f7; font-weight: 600; }
+
+        .empty { color: #444; font-style: italic; font-size: 13px; padding: 20px 0; }
+        .github-link { color: #4fc3f7; text-decoration: none; font-size: 13px; }
+        .github-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <h1>🚦 Program Health Agent</h1>
+    <p class="meta" id="repoName">Monitoring automotive open source projects</p>
+
+    <div class="controls">
+        <button class="btn" id="refreshBtn" onclick="startAnalysis()">Run Analysis</button>
+        <div class="status-msg" id="statusMsg"></div>
+    </div>
+
+    <!-- Scorecard -->
+    <div class="scorecard" id="scorecard">
+        <div class="score-card"><div class="score-rag">—</div><div class="score-number">—</div><div class="score-label">Overall</div></div>
+        <div class="score-card"><div class="score-rag">—</div><div class="score-number">—</div><div class="score-label">Schedule</div></div>
+        <div class="score-card"><div class="score-rag">—</div><div class="score-number">—</div><div class="score-label">Quality</div></div>
+        <div class="score-card"><div class="score-rag">—</div><div class="score-number">—</div><div class="score-label">Team</div></div>
+    </div>
+
+    <!-- Executive Summary -->
+    <div class="section" id="summarySection" style="display:none">
+        <h2>📋 Executive Summary</h2>
+        <p id="summaryText"></p>
+    </div>
+
+    <!-- Risks -->
+    <div class="section" id="risksSection" style="display:none">
+        <h2>⚠️ Top Risks</h2>
+        <div id="risksList"></div>
+    </div>
+
+    <!-- Recommendations -->
+    <div class="section" id="recsSection" style="display:none">
+        <h2>✅ Recommendations</h2>
+        <div id="recsList"></div>
+    </div>
+
+    <!-- Positive Finding -->
+    <div class="section" id="positiveSection" style="display:none">
+        <h2>⭐ Positive Finding</h2>
+        <div class="item" style="border-left-color: #4fc3f7;">
+            <div class="item-desc" id="positiveText"></div>
+        </div>
+    </div>
+
+    <!-- Raw Metrics -->
+    <div class="section" id="metricsSection" style="display:none">
+        <h2>📊 Raw Metrics</h2>
+        <div class="metrics-grid" id="metricsList"></div>
+    </div>
+
+    <!-- Geographic Distribution -->
+    <div class="section" id="geoSection" style="display:none">
+        <h2>🌍 Geographic Distribution</h2>
+        <div id="geoContent"></div>
+    </div>
+
+    <!-- GitHub Report Link -->
+    <div id="reportLinkSection" style="display:none; margin-top:16px;">
+        <a id="reportLink" class="github-link" href="#" target="_blank">
+            📄 View full report on GitHub →
+        </a>
+    </div>
+
+    <script>
+        let polling = null;
+
+        function ragToClass(rag) {
+            if (rag.includes('GREEN')) return 'green';
+            if (rag.includes('AMBER')) return 'amber';
+            if (rag.includes('RED')) return 'red';
+            return '';
+        }
+
+        function ragToEmoji(rag) {
+            if (rag.includes('GREEN')) return '🟢';
+            if (rag.includes('AMBER')) return '🟡';
+            if (rag.includes('RED')) return '🔴';
+            return '—';
+        }
+
+        async function startAnalysis() {
+            await fetch('/api/refresh', { method: 'POST' });
+            document.getElementById('refreshBtn').disabled = true;
+            document.getElementById('statusMsg').innerHTML =
+                '<span class="spinner"></span>Fetching data and analyzing...';
+            polling = setInterval(checkStatus, 3000);
+        }
+
+        async function checkStatus() {
+            const res = await fetch('/api/status');
+            const data = await res.json();
+            if (data.status === 'done' || data.status === 'error') {
+                clearInterval(polling);
+                document.getElementById('refreshBtn').disabled = false;
+                document.getElementById('statusMsg').textContent =
+                    data.status === 'error'
+                        ? 'Analysis failed — check logs.'
+                        : `Last updated: ${data.last_updated}`;
+                if (data.status === 'done') loadResults();
+            }
+        }
+
+        async function loadResults() {
+            const res = await fetch('/api/results');
+            const data = await res.json();
+            if (!data.scores) return;
+
+            let analysis = data.analysis;
+            if (typeof analysis === 'string') {
+                try { analysis = JSON.parse(analysis); } catch(e) {}
+            }
+
+            // Repo name
+            document.getElementById('repoName').innerHTML =
+                `Analyzing: <a href="https://github.com/${data.repo}" target="_blank" style="color:#4fc3f7;">${data.repo}</a>`;
+
+            // Scorecard
+            const dims = ['overall', 'schedule', 'quality', 'team'];
+            const labels = ['Overall', 'Schedule', 'Quality', 'Team'];
+            const scorecard = document.getElementById('scorecard');
+            scorecard.innerHTML = dims.map((dim, i) => `
+                <div class="score-card ${ragToClass(data.rag[dim])}">
+                    <div class="score-rag">${ragToEmoji(data.rag[dim])}</div>
+                    <div class="score-number">${data.scores[dim]}</div>
+                    <div class="score-label">${labels[i]}</div>
+                </div>
+            `).join('');
+
+            // Executive Summary
+            document.getElementById('summaryText').textContent =
+                analysis.executive_summary || '';
+            document.getElementById('summarySection').style.display = 'block';
+
+            //Risks
+            const risks = analysis.risks || [];
+                document.getElementById('risksList').innerHTML = risks.map(r => {
+                    if (typeof r === 'string') return `<div class="item risk"><div class="item-desc">${r}</div></div>`;
+                    const title = r.title || r.name || r.risk || Object.values(r)[0] || '';
+                    const desc = r.description || r.detail || r.details || Object.values(r)[1] || '';
+                    return `<div class="item risk"><div class="item-title">${title}</div><div class="item-desc">${desc}</div></div>`;
+                }).join('');
+                document.getElementById('risksSection').style.display = 'block';
+
+                // Recommendations
+                const recs = analysis.recommendations || [];
+                document.getElementById('recsList').innerHTML = recs.map(r => {
+                    if (typeof r === 'string') return `<div class="item rec"><div class="item-desc">${r}</div></div>`;
+                    const title = r.title || r.name || r.recommendation || Object.values(r)[0] || '';
+                    const desc = r.description || r.detail || r.details || Object.values(r)[1] || '';
+                    return `<div class="item rec"><div class="item-title">${title}</div><div class="item-desc">${desc}</div></div>`;
+                }).join('');
+                document.getElementById('recsSection').style.display = 'block';
+
+            // Positive finding
+            const positive = analysis.positive_finding || '';
+            if (positive) {
+                document.getElementById('positiveSection').style.display = 'block';
+                document.getElementById('positiveText').textContent = positive;
+            }
+
+            // Raw metrics
+            const issues = data.raw_data.issues || {};
+            const prs = data.raw_data.pull_requests || {};
+            const contributors = data.raw_data.contributors || {};
+            const meta = data.raw_data.meta || {};
+
+            const metrics = [
+                ['Open Issues', issues.total_open || 0],
+                ['Avg Issue Age', `${issues.avg_age_days || 0} days`],
+                ['Critical Age Issues', issues.critical_age || 0],
+                ['Oldest Issue', `${issues.oldest_days || 0} days`],
+                ['Open PRs', prs.total_open || 0],
+                ['Stale PRs', prs.stale_prs || 0],
+                ['Contributors', contributors.total_contributors || 0],
+                ['Bus Factor', contributors.bus_factor || 0],
+                ['Days Since Push', meta.days_since_last_push || 0],
+            ];
+
+            // Geo section
+            const geo = data.geo || {};
+            if (geo.friction_score && geo.friction_score !== 'unknown') {
+                const geoHtml = `
+                    <div class="metrics-grid" style="margin-bottom:12px;">
+                        <div class="metric"><span class="metric-label">Timezone Spread</span>
+                            <span class="metric-value">${geo.timezone_spread_hours}h</span></div>
+                        <div class="metric"><span class="metric-label">Friction Level</span>
+                            <span class="metric-value">${geo.friction_label}</span></div>
+                        <div class="metric"><span class="metric-label">Overlap Window</span>
+                            <span class="metric-value">${geo.overlap_window_hours}h/day</span></div>
+                        <div class="metric"><span class="metric-label">PR SLA Recommendation</span>
+                            <span class="metric-value" style="font-size:11px;">${geo.pr_sla_recommendation}</span></div>
+                    </div>
+                    <div style="font-size:12px;color:#888;margin-bottom:8px;">
+                        Locations resolved: ${geo.resolved_count} of ${geo.resolved_count + geo.unresolved_count} contributors
+                    </div>
+                    ${(geo.resolved || []).map(c => `
+                        <div class="item" style="border-left-color:#4fc3f7;margin-bottom:8px;">
+                            <div class="item-title">${c.login} — ${c.location}
+                                <span style="color:#888;font-weight:normal;">
+                                    (UTC${c.utc_offset >= 0 ? '+' : ''}${c.utc_offset}) · ${c.percentage}% contributions
+                                </span>
+                            </div>
+                        </div>
+                    `).join('')}
+                    ${geo.unresolved && geo.unresolved.length > 0 ? `
+                        <div style="color:#666;font-size:12px;margin-top:8px;">
+                            No location: ${geo.unresolved.map(c => c.login).join(', ')}
+                        </div>
+                    ` : ''}
+                `;
+                document.getElementById('geoContent').innerHTML = geoHtml;
+                document.getElementById('geoSection').style.display = 'block';
+            }
+
+            document.getElementById('metricsList').innerHTML = metrics.map(([label, value]) => `
+                <div class="metric">
+                    <span class="metric-label">${label}</span>
+                    <span class="metric-value">${value}</span>
+                </div>
+            `).join('');
+            document.getElementById('metricsSection').style.display = 'block';
+
+            // GitHub report link
+            if (data.report_url) {
+                document.getElementById('reportLink').href = data.report_url;
+                document.getElementById('reportLinkSection').style.display = 'block';
+            }
+        }
+
+        // Load on page open
+        window.onload = async function() {
+            const res = await fetch('/api/status');
+            const data = await res.json();
+            if (data.status === 'done') {
+                document.getElementById('statusMsg').textContent =
+                    'Last updated: ' + data.last_updated;
+                loadResults();
+            }
+        }
+    </script>
+</body>
+</html>
